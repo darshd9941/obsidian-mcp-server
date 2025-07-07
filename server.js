@@ -4,29 +4,20 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Ensure compatibility in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Express setup
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// Set vault path to ./vault directory (safe for Render)
 const vaultPath = path.join(__dirname, 'vault');
+if (!fs.existsSync(vaultPath)) fs.mkdirSync(vaultPath, { recursive: true });
 
-// Create vault directory if not exists
-if (!fs.existsSync(vaultPath)) {
-  fs.mkdirSync(vaultPath, { recursive: true });
-}
-
-// Simple GET route for health check
 app.get('/', (req, res) => {
   res.send('🧠 MCP Server is running!');
 });
 
-// MCP endpoint
 app.post('/', async (req, res) => {
   const { action, path: filePath, content } = req.body;
 
@@ -39,4 +30,24 @@ app.post('/', async (req, res) => {
   try {
     if (action === 'write') {
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-      fs.writeFileSync(f
+      fs.writeFileSync(fullPath, content);
+      return res.json({ status: 'ok', savedTo: fullPath });
+    }
+
+    if (action === 'write-binary') {
+      const buffer = Buffer.from(content, 'base64');
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+      fs.writeFileSync(fullPath, buffer);
+      return res.json({ status: 'ok', savedTo: fullPath });
+    }
+
+    return res.status(400).json({ error: 'Unknown action' });
+  } catch (e) {
+    return res.status(500).json({ error: e.toString() });
+  }
+});
+
+const port = process.env.PORT || 3000;
+app.listen(port, '0.0.0.0', () => {
+  console.log(`✅ MCP server running at http://localhost:${port}`);
+});
